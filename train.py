@@ -14,7 +14,7 @@ import time
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
-
+import quan
 import numpy as np
 import torch
 import torch.distributed as dist
@@ -113,16 +113,25 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
         with torch_distributed_zero_first(LOCAL_RANK):
             weights = attempt_download(weights)  # download if not found locally
         ckpt = torch.load(weights, map_location=device)  # load checkpoint
-        model = Model(cfg or ckpt['model'].yaml, ch=3, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
+        model = Model(cfg or ckpt['model'].yaml, ch=3, nc=nc, anchors=hyp.get('anchors'))  # create
         exclude = ['anchor'] if (cfg or hyp.get('anchors')) and not resume else []  # exclude keys
         csd = ckpt['model'].float().state_dict()  # checkpoint state_dict as FP32
         csd = intersect_dicts(csd, model.state_dict(), exclude=exclude)  # intersect
         model.load_state_dict(csd, strict=False)  # load
         LOGGER.info(f'Transferred {len(csd)}/{len(model.state_dict())} items from {weights}')  # report
     else:
-        model = Model(cfg, ch=3, nc=nc, anchors=hyp.get('anchors')).to(device)  # create
-
+        model = Model(cfg, ch=3, nc=nc, anchors=hyp.get('anchors'))  # create
+    # for name, module in model.named_children():
+    #     print(name)
+    # print("module:")
+    # for name, module in model.named_modules():
+    #     print(f"{name} {type(module) in {nn.Conv2d:1}.keys()}")
+    # exit()
+    # print(model)
+    modules_to_replace = quan.find_modules_to_quantize(model, hyp['quan'])
+    model = quan.replace_module_by_names(model, modules_to_replace).to(device)
     # Freeze
+    # model = model.to(device)
     freeze = [f'model.{x}.' for x in range(freeze)]  # layers to freeze
     for k, v in model.named_parameters():
         v.requires_grad = True  # train all layers
@@ -241,7 +250,7 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
 
     # DDP mode
     if cuda and RANK != -1:
-        model = DDP(model, device_ids=[LOCAL_RANK], output_device=LOCAL_RANK)
+        model = DDP(model, device_ids=[LOCAL_RANK], output_device=LOCAL_RANK,find_unused_parameters=True)
 
     # Model parameters
     nl = de_parallel(model).model[-1].nl  # number of detection layers (to scale hyps)
@@ -507,7 +516,10 @@ def main(opt, callbacks=Callbacks()):
         opt.save_dir = str(increment_path(Path(opt.project) / opt.name, exist_ok=opt.exist_ok))
 
     # DDP mode
+    # print(opt.device)
     device = select_device(opt.device, batch_size=opt.batch_size)
+    # print(device)
+    # exit()
     if LOCAL_RANK != -1:
         assert torch.cuda.device_count() > LOCAL_RANK, 'insufficient CUDA devices for DDP command'
         assert opt.batch_size % WORLD_SIZE == 0, '--batch-size must be multiple of CUDA device count'
