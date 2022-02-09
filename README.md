@@ -273,8 +273,8 @@ professional support requests please visit [https://ultralytics.com/contact](htt
 </div>
    
    
-训练lsq+yolo
+多卡训练lsq+yolo
    
 ```bash
-$ python train.py --data coco.yaml --weights yolov3.pt --device 7   --batch-size 8
+$ python -m torch.distributed.launch --nproc_per_node 4  train.py --data coco.yaml --weights yolov3.pt --device 0,1,2,3  --project /home/lupu123456/yolov3/runs/train/quant --batch 32  --epochs 150 
 ```
