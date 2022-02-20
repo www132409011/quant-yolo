@@ -1,9 +1,9 @@
 import torch as t
-
+import fcos_core
 
 class QuanConv2d(t.nn.Conv2d):
     def __init__(self, m: t.nn.Conv2d, quan_w_fn=None, quan_a_fn=None):
-        assert type(m) == t.nn.Conv2d
+        assert (type(m) == t.nn.Conv2d or type(m) == fcos_core.layers.misc.Conv2d)
         super().__init__(m.in_channels, m.out_channels, m.kernel_size,
                          stride=m.stride,
                          padding=m.padding,
@@ -46,5 +46,6 @@ class QuanLinear(t.nn.Linear):
 
 QuanModuleMapping = {
     t.nn.Conv2d: QuanConv2d,
-    t.nn.Linear: QuanLinear
+    t.nn.Linear: QuanLinear,
+    fcos_core.layers.misc.Conv2d: QuanConv2d
 }

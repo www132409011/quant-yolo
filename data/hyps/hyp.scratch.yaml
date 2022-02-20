@@ -38,7 +38,7 @@ quan:
     # Quantizer type (choices: lsq)
     mode: lsq
     # Bit width of quantized activation
-    bit: 2
+    bit: 4
     # Each output channel uses its own scaling factor
     per_channel: false
     # Whether to use symmetric quantization
@@ -49,7 +49,7 @@ quan:
     # Quantizer type (choices: lsq)
     mode: lsq
     # Bit width of quantized weight
-    bit: 3
+    bit: 4
     # Each output channel uses its own scaling factor
     per_channel: false
     # Whether to use symmetric quantization

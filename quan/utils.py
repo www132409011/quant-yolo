@@ -2,7 +2,7 @@ import logging
 
 from .func import *
 from .quantizer import *
-
+import numpy as np
 
 def quantizer(default_cfg, this_cfg=None):
     target_cfg = dict(default_cfg)
@@ -56,5 +56,26 @@ def replace_module_by_names(model, modules_to_replace):
             else:
                 helper(c)
 
+    helper(model)
+    return model
+
+def inject_weight_variation(model, bit ,variation = 1./32.):
+    def helper(child: t.nn.Module):
+        for n, c in child.named_children():
+            if type(c) in [QuanConv2d]:
+                for full_name , m in model.named_modules():
+                    if c is m:
+                        if type(m.quan_w_fn) is IdentityQuan:
+                            break
+                        weight_base =m.weight.data.clone()
+                        weight_base.div_(m.quan_w_fn.s).clamp_(-2 ** (bit -1), 2 ** (bit-1) -1).round_()
+                        std =variation * (2**(bit -1))
+                        noise = t.tensor(np.random.normal(0,std,m.weight.shape)).float().cuda()
+                        weight_base.add_(noise)
+                        weight_base.mul_(m.quan_w_fn.s)
+                        m.weight.data.copy_(weight_base)
+                        break
+            else:
+                helper(c)
     helper(model)
     return model

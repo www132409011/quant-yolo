@@ -12,11 +12,11 @@ import os
 import sys
 from pathlib import Path
 from threading import Thread
-
+from collections import OrderedDict
 import numpy as np
 import torch
 from tqdm import tqdm
-
+import quan
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # root directory
 if str(ROOT) not in sys.path:
@@ -32,7 +32,6 @@ from utils.general import (LOGGER, NCOLS, box_iou, check_dataset, check_img_size
 from utils.metrics import ConfusionMatrix, ap_per_class
 from utils.plots import output_to_target, plot_images, plot_val_study
 from utils.torch_utils import select_device, time_sync
-
 
 def save_one_txt(predn, save_conf, shape, file):
     # Save one txt result
@@ -124,6 +123,10 @@ def run(data,
 
         # Load model
         model = DetectMultiBackend(weights, device=device, dnn=dnn)
+        # for n, c in model.model.named_children():
+        #     print(f"{n}:{c}")
+        # exit()
+        model.model = quan.inject_weight_variation(model.model,3,1.0/32.0)
         stride, pt = model.stride, model.pt
         imgsz = check_img_size(imgsz, s=stride)  # check image size
         half &= pt and device.type != 'cpu'  # half precision only supported by PyTorch on CUDA
@@ -163,6 +166,7 @@ def run(data,
     loss = torch.zeros(3, device=device)
     jdict, stats, ap, ap_class = [], [], [], []
     pbar = tqdm(dataloader, desc=s, ncols=NCOLS, bar_format='{l_bar}{bar:10}{r_bar}{bar:-10b}')  # progress bar
+    model.train()
     for batch_i, (im, targets, paths, shapes) in enumerate(pbar):
         t1 = time_sync()
         if pt:
@@ -173,7 +177,13 @@ def run(data,
         nb, _, height, width = im.shape  # batch size, channels, height, width
         t2 = time_sync()
         dt[0] += t2 - t1
-
+        if batch_i < 25:
+            model(im)
+            continue
+        if batch_i == 25:
+            model(im)
+            model.eval()
+            continue
         # Inference
         out, train_out = model(im) if training else model(im, augment=augment, val=True)  # inference, loss outputs
         dt[1] += time_sync() - t2

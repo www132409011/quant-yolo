@@ -302,7 +302,7 @@ class DetectMultiBackend(nn.Module):
                 stride, names = int(d['stride']), d['names']
         elif pt:  # PyTorch
             from models.experimental import attempt_load  # scoped to avoid circular import
-            model = torch.jit.load(w) if 'torchscript' in w else attempt_load(weights, map_location=device)
+            model = torch.jit.load(w) if 'torchscript' in w else attempt_load(weights, map_location=device,fuse =False)
             stride = int(model.stride.max())  # model stride
             names = model.module.names if hasattr(model, 'module') else model.names  # get class names
         elif coreml:  # CoreML *.mlmodel
